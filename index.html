@@ -25,23 +25,47 @@
             cursor: pointer;
             user-select: none;
         }
+        .status-badge:hover {
+            background-color: #f3f4f6;
+            border-radius: 4px;
+        }
+        .sortable {
+            cursor: pointer;
+            position: relative;
+        }
+        .sortable:hover {
+            background-color: #e5e7eb;
+        }
+        .editable input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .selected {
+            background-color: #dbeafe;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
     <div class="max-w-7xl mx-auto">
         <h1 class="text-2xl font-semibold mb-6 text-center text-gray-800">Acompanhamento de Processos</h1>
 
+        <div class="mb-4 flex space-x-2">
+            <input type="text" id="search-input" placeholder="Pesquisar por número ou tarefa..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+            <button id="edit-btn" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" disabled>Editar</button>
+            <button id="remove-btn" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" disabled>Remover</button>
+        </div>
+
         <div class="shadow-md rounded-lg overflow-hidden mb-6">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-200">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Item</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Número do Processo</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Tarefa / Observação</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">Data/Hora</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">Protocolado</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">Ações</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="item">Item</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="number">Número do Processo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="task">Tarefa / Observação</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="date">Data/Hora</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="protocol">Protocolado</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider sortable" data-sort="protocol-date">Data de Protocolo</th>
                         </tr>
                     </thead>
                     <tbody id="process-table-body" class="bg-white divide-y divide-gray-200"></tbody>
@@ -61,15 +85,13 @@
                     <textarea id="process-task" name="process-task" rows="3" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
                 </div>
                 <div>
-                    <label for="protocol-status" class="block text-sm font-medium text-gray-700">Protocolado</label>
-                    <select id="protocol-status" name="protocol-status" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        <option value="Sim">Sim</option>
-                        <option value="Não" selected>Não</option>
-                    </select>
-                </div>
-                <div>
                     <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Adicionar Item
+                    </button>
+                </div>
+                <div>
+                    <button id="download-btn" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 mt-4">
+                        Baixar Backup
                     </button>
                 </div>
             </form>
@@ -79,6 +101,40 @@
     <script>
         const tableBody = document.getElementById('process-table-body');
         const form = document.getElementById('add-process-form');
+        const searchInput = document.getElementById('search-input');
+        const downloadBtn = document.getElementById('download-btn');
+        const editBtn = document.getElementById('edit-btn');
+        const removeBtn = document.getElementById('remove-btn');
+
+        let selectedRow = null;
+
+        // Dados iniciais do documento
+        const initialProcesses = [
+            { number: "50214915920248210039", task: "Elaborar e protocolar apelação reiterando os termos da contestação", protocol: "Não", protocolDate: "" },
+            { number: "50002116920088210014", task: "Elaborar resposta à impugnação", protocol: "Não", protocolDate: "" },
+            { number: "50951915620228210001", task: "Requerer o prosseguimento; Informar nome e telefone do morador (enviado por e-mail); Atender a determinação da juiza", protocol: "Não", protocolDate: "" },
+            { number: "50025126420158210039", task: "Agravar da decisão que deu preferência ao credor hipotecário", protocol: "Não", protocolDate: "" },
+            { number: "52679687620248210001", task: "Elaborar nova inicial", protocol: "Não", protocolDate: "" },
+            { number: "52679115820248210001", task: "Elaborar nova inicial", protocol: "Não", protocolDate: "" },
+            { number: "50255529520258217000", task: "Elaborar as contrarrazões", protocol: "Não", protocolDate: "" },
+            { number: "52005269320248210001", task: "Requerer o prosseguimento", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50126767320248210039", task: "Requerer o prosseguimento", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50076778920238210014", task: "Emitir Guia para depósito dos honorários sucumbenciais", protocol: "Não", protocolDate: "" },
+            { number: "53281624220248210001", task: "Elaborar nova inicial; Ver do que se trata", protocol: "Não", protocolDate: "" },
+            { number: "50022321920248213001", task: "Ver se há provas, senão, requerer julgamento", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50024954020188210001", task: "Elaborar e-mail ao TNN solicitando nomes e qualificações de 3 testemunhas, enviar ao seu e-mail e, após, peticionar ratificando interesse na prova oral", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50005164820158210001", task: "Elaborar e-mail ao TNN solicitando nomes e qualificações de 3 testemunhas, enviar ao seu e-mail e, após, peticionar ratificando interesse na prova oral", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50034951720148210001", task: "Informar que o cálculo do evento 207 já atendeu a determinação do juízo", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50600728120258217000", task: "Elaborar as contrarrazões", protocol: "Não", protocolDate: "" },
+            { number: "50123468520228213001", task: "Informar que o autor não teve ciência do termo elaborado pelo réu e requerer prosseguimento com condenação por litigância de má-fé", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50051558920238210014", task: "Informar que a publicação do edital supre a intimação pessoal", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50017974020254047100", task: "Elaborar resposta aos Embargos de Terceiro (Justiça Federal)", protocol: "Não", protocolDate: "" },
+            { number: "50085566320088210001", task: "Reiterar os termos da última petição e anexar matrícula atualizada por e-mail); Cliente: 0002751231 - COND EDIF TERRA NOVA NATURE - INICIAL", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50783952420218210001", task: "Requerer o prosseguimento", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50034890520178210001", task: "Requerer o prosseguimento", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50640037920218210001", task: "Indicar a Leiloeira Neila", protocol: "Sim", protocolDate: new Date().toLocaleString() },
+            { number: "50005084920188210039", task: "Elaborar Recurso Especial", protocol: "Sim", protocolDate: new Date().toLocaleString() }
+        ];
 
         function saveProcesses() {
             const processes = [];
@@ -88,15 +144,20 @@
                     number: cells[1].textContent,
                     task: cells[2].textContent,
                     date: cells[3].textContent,
-                    protocol: cells[4].textContent
+                    protocol: cells[4].textContent,
+                    protocolDate: cells[5].textContent
                 });
             });
             localStorage.setItem('processes', JSON.stringify(processes));
         }
 
         function loadProcesses() {
-            const processes = JSON.parse(localStorage.getItem('processes')) || [];
-            processes.forEach(p => addProcessToTable(p.number, p.task, p.date, p.protocol));
+            const processes = JSON.parse(localStorage.getItem('processes'));
+            if (processes && processes.length > 0) {
+                processes.forEach(p => addProcessToTable(p.number, p.task, p.date, p.protocol, p.protocolDate));
+            } else {
+                initialProcesses.forEach(p => addProcessToTable(p.number, p.task, new Date().toLocaleString(), p.protocol, p.protocolDate));
+            }
         }
 
         function renumberRows() {
@@ -106,22 +167,40 @@
             });
         }
 
-        function addProcessToTable(processNumber, processTask, date, protocolStatus) {
+        function addProcessToTable(processNumber, processTask, date, protocolStatus, protocolDate = "") {
+            const statusClass = protocolStatus === 'Sim' ? 'text-green-600' : 'text-red-600';
             const newRow = document.createElement('tr');
             newRow.innerHTML = `
                 <td class="px-6 py-4 text-sm font-medium text-gray-900"></td>
-                <td class="px-6 py-4 text-sm text-gray-700">${processNumber}</td>
-                <td class="px-6 py-4 text-sm text-gray-700">${processTask}</td>
+                <td class="px-6 py-4 text-sm text-gray-700 editable">${processNumber}</td>
+                <td class="px-6 py-4 text-sm text-gray-700 editable">${processTask}</td>
                 <td class="px-6 py-4 text-center text-sm text-gray-700">${date}</td>
-                <td class="px-6 py-4 text-center text-sm text-gray-700">${protocolStatus}</td>
-                <td class="px-6 py-4 text-center">
-                    <button class="remove-btn text-red-600 hover:text-red-800 text-sm font-medium">Remover</button>
-                </td>`;
+                <td class="px-6 py-4 text-center text-sm ${statusClass} status-badge">${protocolStatus}</td>
+                <td class="px-6 py-4 text-center text-sm text-gray-700">${protocolDate}</td>`;
 
-            newRow.querySelector('.remove-btn').addEventListener('click', function () {
-                newRow.remove();
+            // Evento para alternar o status "Protocolado" e registrar a data de protocolo
+            const statusCell = newRow.querySelector('.status-badge');
+            const protocolDateCell = newRow.querySelector('td:last-child');
+            statusCell.addEventListener('click', function () {
+                const currentStatus = statusCell.textContent;
+                const newStatus = currentStatus === 'Sim' ? 'Não' : 'Sim';
+                statusCell.textContent = newStatus;
+                statusCell.className = `px-6 py-4 text-center text-sm ${newStatus === 'Sim' ? 'text-green-600' : 'text-red-600'} status-badge`;
+                if (newStatus === 'Sim') {
+                    protocolDateCell.textContent = new Date().toLocaleString();
+                } else {
+                    protocolDateCell.textContent = '';
+                }
                 saveProcesses();
-                renumberRows();
+            });
+
+            // Evento para selecionar a linha
+            newRow.addEventListener('click', function () {
+                tableBody.querySelectorAll('tr').forEach(row => row.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedRow = this;
+                editBtn.disabled = false;
+                removeBtn.disabled = false;
             });
 
             tableBody.insertBefore(newRow, tableBody.firstChild);
@@ -132,11 +211,119 @@
         form.addEventListener('submit', function(event) {
             event.preventDefault();
             const processNumber = document.getElementById('process-number').value.trim();
+            const existing = Array.from(tableBody.querySelectorAll('tr td:nth-child(2)'))
+                .some(cell => cell.textContent === processNumber);
+            if (existing) {
+                alert('Esse número de processo já existe!');
+                return;
+            }
             const processTask = document.getElementById('process-task').value.trim();
-            const protocolStatus = document.getElementById('protocol-status').value;
             const date = new Date().toLocaleString();
-            addProcessToTable(processNumber, processTask, date, protocolStatus);
+            addProcessToTable(processNumber, processTask, date, "Não"); // Protocolado sempre "Não" ao adicionar
             form.reset();
+        });
+
+        // Filtro de busca
+        searchInput.addEventListener('input', function () {
+            const searchTerm = this.value.toLowerCase();
+            const rows = tableBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const number = row.cells[1].textContent.toLowerCase();
+                const task = row.cells[2].textContent.toLowerCase();
+                if (number.includes(searchTerm) || task.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Ordenação por colunas
+        let sortDirection = 1;
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', function () {
+                const sortBy = this.getAttribute('data-sort');
+                const rows = Array.from(tableBody.querySelectorAll('tr'));
+                rows.sort((a, b) => {
+                    let aValue = sortBy === 'item' ? a.cells[0].textContent :
+                                sortBy === 'number' ? a.cells[1].textContent :
+                                sortBy === 'task' ? a.cells[2].textContent :
+                                sortBy === 'date' ? a.cells[3].textContent :
+                                sortBy === 'protocol' ? a.cells[4].textContent :
+                                a.cells[5].textContent;
+                    let bValue = sortBy === 'item' ? b.cells[0].textContent :
+                                sortBy === 'number' ? b.cells[1].textContent :
+                                sortBy === 'task' ? b.cells[2].textContent :
+                                sortBy === 'date' ? b.cells[3].textContent :
+                                sortBy === 'protocol' ? b.cells[4].textContent :
+                                b.cells[5].textContent;
+
+                    if (sortBy === 'item') {
+                        aValue = parseInt(aValue);
+                        bValue = parseInt(bValue);
+                        return sortDirection * (aValue - bValue);
+                    } else if (sortBy === 'date' || sortBy === 'protocol-date') {
+                        aValue = aValue ? new Date(aValue) : new Date(0);
+                        bValue = bValue ? new Date(bValue) : new Date(0);
+                        return sortDirection * (aValue - bValue);
+                    }
+                    return sortDirection * aValue.localeCompare(bValue);
+                });
+                sortDirection *= -1;
+                rows.forEach(row => tableBody.appendChild(row));
+                renumberRows();
+            });
+        });
+
+        // Edição inline
+        let isEditing = false;
+        editBtn.addEventListener('click', function () {
+            if (!selectedRow) return;
+
+            const editableCells = selectedRow.querySelectorAll('.editable');
+            if (!isEditing) {
+                editableCells.forEach(cell => {
+                    const text = cell.textContent;
+                    const input = document.createElement('input');
+                    input.value = text;
+                    input.className = 'border rounded p-1';
+                    cell.innerHTML = '';
+                    cell.appendChild(input);
+                });
+                this.textContent = 'Salvar';
+                isEditing = true;
+            } else {
+                editableCells.forEach(cell => {
+                    const input = cell.querySelector('input');
+                    cell.textContent = input.value;
+                });
+                this.textContent = 'Editar';
+                isEditing = false;
+                saveProcesses();
+            }
+        });
+
+        // Remover linha selecionada
+        removeBtn.addEventListener('click', function () {
+            if (!selectedRow) return;
+            selectedRow.remove();
+            selectedRow = null;
+            editBtn.disabled = true;
+            removeBtn.disabled = true;
+            saveProcesses();
+            renumberRows();
+        });
+
+        // Download de backup
+        downloadBtn.addEventListener('click', function () {
+            const processes = JSON.parse(localStorage.getItem('processes')) || initialProcesses.map(p => ({ number: p.number, task: p.task, date: new Date().toLocaleString(), protocol: p.protocol, protocolDate: p.protocolDate }));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(processes));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "processos_backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
         });
 
         loadProcesses();
