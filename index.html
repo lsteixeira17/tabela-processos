@@ -43,6 +43,20 @@
         .selected {
             background-color: #dbeafe;
         }
+        /* Adicionado estilo para paginação */
+        .pagination, .pagination button {
+            display: flex;
+            justify-content: center;
+            margin: 0 0.25rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid #ccc;
+            background-color: #f9fafb;
+            cursor: pointer;
+        }
+        .pagination button.active {
+            background-color: #e5e7eb;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
@@ -72,6 +86,9 @@
                 </table>
             </div>
         </div>
+
+        <div class="pagination mt-4" id="pagination-controls"></div>
+        <div class="pagination" id="pagination-controls"></div>
 
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-lg font-medium mb-4 text-gray-900">Adicionar Novo Processo</h2>
@@ -211,16 +228,23 @@
         form.addEventListener('submit', function(event) {
             event.preventDefault();
             const processNumber = document.getElementById('process-number').value.trim();
+            const processTask = document.getElementById('process-task').value.trim();
+
+            if (!processNumber || !processTask) {
+                alert('Todos os campos são obrigatórios!');
+                return;
+            }
+
             const existing = Array.from(tableBody.querySelectorAll('tr td:nth-child(2)'))
                 .some(cell => cell.textContent === processNumber);
             if (existing) {
                 alert('Esse número de processo já existe!');
                 return;
             }
-            const processTask = document.getElementById('process-task').value.trim();
             const date = new Date().toLocaleString();
             addProcessToTable(processNumber, processTask, date, "Não"); // Protocolado sempre "Não" ao adicionar
             form.reset();
+            renderTablePage(currentPage);
         });
 
         // Filtro de busca
@@ -326,7 +350,59 @@
             downloadAnchorNode.remove();
         });
 
+        // Paginação
+        const rowsPerPage = 10;
+        let currentPage = 1;
+
+        function renderTablePage(page) {
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            const start = (page - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+
+            rows.forEach((row, index) => {
+                row.style.display = index >= start && index < end ? '' : 'none';
+            });
+
+            renderPaginationControls(rows.length);
+        }
+
+        function renderPaginationControls(totalRows) {
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+            const paginationControls = document.getElementById('pagination-controls');
+            paginationControls.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.className = i === currentPage ? 'active' : '';
+                button.addEventListener('click', () => {
+                    currentPage = i;
+                    renderTablePage(currentPage);
+                });
+                paginationControls.appendChild(button);
+            }
+        }
+
+        // Sincronização com backend (simulada)
+        function syncWithBackend() {
+            const processes = JSON.parse(localStorage.getItem('processes')) || [];
+            console.log('Sincronizando com backend...', processes);
+            // Simulação de envio para backend
+            setTimeout(() => {
+                alert('Dados sincronizados com sucesso!');
+            }, 1000);
+        }
+
+        // Botão para sincronizar com backend
+        const syncBtn = document.createElement('button');
+        syncBtn.textContent = 'Sincronizar com Backend';
+        syncBtn.className = 'inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 mt-4';
+        syncBtn.addEventListener('click', syncWithBackend);
+        document.querySelector('.bg-white').appendChild(syncBtn);
+
+        // Inicialização
         loadProcesses();
+        renderTablePage(currentPage);
     </script>
 </body>
 </html>
